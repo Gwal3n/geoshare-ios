@@ -11,7 +11,7 @@ xcodegen generate
 open GeoShare.xcodeproj
 ```
 
-Select your development team and register the app group `group.app.gwal3n.geoshare` for both targets before installing on a device. The GitHub Actions workflow builds an **unsigned** IPA artifact. Installing it on a device still requires signing with your own Apple development or distribution identity.
+Select your development team and register the app group `group.app.gwal3n.geoshare` for both targets before installing on a device. The GitHub Actions workflow builds with the **iOS 26 SDK** and uploads an **unsigned** IPA artifact. The minimum supported iOS version remains 17. Installing on a device still requires signing with your own Apple development or distribution identity.
 
 ## Current link support
 

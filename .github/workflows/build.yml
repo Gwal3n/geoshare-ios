@@ -5,9 +5,15 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - name: Verify iOS 26 SDK
+        run: |
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $sdk"
+          [[ "$sdk" == 26.* ]]
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate Xcode project
@@ -16,6 +22,10 @@ jobs:
         run: |
           swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Tests/ParserSmoke.swift -o parser-smoke
           ./parser-smoke
+      - name: Test Google Maps short link
+        run: |
+          swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Shared/LinkResolver.swift Tests/LiveLinkSmoke.swift -o live-link-smoke
+          ./live-link-smoke
       - name: Build unsigned app
         run: |
           xcodebuild -project GeoShare.xcodeproj -scheme GeoShare -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
