@@ -51,6 +51,7 @@ final class ShareViewController: UIViewController {
 }
 
 private struct ShareContentView: View {
+    @Environment(\.openURL) private var openURL
     var input = ""
     var close: () -> Void
     var open: (URL, @escaping (Bool) -> Void) -> Void
@@ -145,9 +146,15 @@ private struct ShareContentView: View {
     }
 
     private func openDestination(_ url: URL, fallback: URL) {
-        open(url) { success in
-            if success { close() }
-            else { offer(fallback) }
+        openURL(url) { accepted in
+            if accepted {
+                close()
+            } else {
+                open(url) { success in
+                    if success { close() }
+                    else { offer(fallback) }
+                }
+            }
         }
     }
 
