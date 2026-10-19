@@ -103,6 +103,70 @@ enum MapParser {
                 return result([point], service)
             }
         }
+        if host == "osmand.net" || host == "www.osmand.net" {
+            let service = "OsmAnd"
+            let route = [q("start"), q("finish")].compactMap { $0 }.compactMap { coordinate($0, source: service) }
+            if !route.isEmpty { return result(route, service) }
+            if let value = q("pin"), let point = coordinate(value, source: service) { return result([point], service) }
+            if let point = regexPoint(url.fragment ?? "", pattern: #"^[0-9.]+/"# + pair, source: service) { return result([point], service) }
+        }
+        if host == "mapy.com" || host == "mapy.cz" || host.hasSuffix(".mapy.com") || host.hasSuffix(".mapy.cz") {
+            let service = "Mapy.com"
+            if let value = q("id"), let point = reversedCoordinate(value, source: service) { return result([point], service) }
+            if let longitude = q("x"), let latitude = q("y"), let point = coordinate("\(latitude),\(longitude)", source: service) { return result([point], service) }
+        }
+        if host == "magicearth.com" {
+            let service = "Magic Earth"
+            if let latitude = q("lat"), let longitude = q("lon"), var point = coordinate("\(latitude),\(longitude)", source: service) {
+                point.name = q("name") ?? q("daddr") ?? q("q")
+                return result([point], service)
+            }
+            if let name = q("name") ?? q("daddr") ?? q("q") { return result([MapPoint(name: name, source: service)], service) }
+        }
+        if host == "cartes-ign.ign.fr" {
+            if let latitude = q("lat"), let longitude = q("lng"), let point = coordinate("\(latitude),\(longitude)", source: "Cartes IGN") { return result([point], "Cartes IGN") }
+        }
+        if host == "kagi.com" || host == "www.kagi.com", url.path.hasPrefix("/maps") {
+            let service = "Kagi Maps"
+            if url.path.contains("/directions"), let value = q("q") {
+                let route = value.split(separator: "|", omittingEmptySubsequences: true).map { item -> MapPoint in
+                    let parts = item.split(separator: "~", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+                    let value = parts.last ?? ""
+                    var point = coordinate(value, source: service) ?? MapPoint(name: parts.first, source: service)
+                    if parts.count > 1, !parts[0].isEmpty { point.name = parts[0] }
+                    return point
+                }
+                if !route.isEmpty { return result(route, service) }
+            }
+            if let id = q("id"), id.hasPrefix("point_") {
+                let parts = id.dropFirst(6).split(separator: "_")
+                if parts.count == 2, var point = coordinate("\(parts[0]),\(parts[1])", source: service) {
+                    point.name = q("q")
+                    return result([point], service)
+                }
+            }
+            if let value = q("ll"), var point = coordinate(value, source: service) { point.name = q("q"); return result([point], service) }
+            if let point = regexPoint(url.fragment ?? "", pattern: #"^[0-9.]+/"# + pair, source: service) { return result([point], service) }
+            if let name = q("q") { return result([MapPoint(name: name, source: service)], service) }
+        }
+        if host == "map.yahoo.co.jp" || host == "map.yahoo.com" {
+            let service = "Yahoo! Maps"
+            if q("gid") == nil, let latitude = q("lat"), let longitude = q("lon"), var point = coordinate("\(latitude),\(longitude)", source: service) {
+                point.name = q("q")
+                return result([point], service)
+            }
+        }
+        if host.hasPrefix("2gis.") || host.hasPrefix("go.2gis.") || host.hasPrefix("maps.urbi.") || host.hasPrefix("go.urbi.") {
+            let service = "2GIS / Urbi"
+            if let value = q("m")?.components(separatedBy: "/").first,
+               let point = reversedCoordinate(value, source: service) { return result([point], service) }
+            if let component = url.pathComponents.map({ $0.removingPercentEncoding ?? $0 }).first(where: { $0.contains(",") }),
+               let point = reversedCoordinate(component, source: service) { return result([point], service) }
+            if let value = q("center"), var point = reversedCoordinate(value, source: service) {
+                point.name = q("title")
+                return result([point], service)
+            }
+        }
         // Unknown providers sometimes expose an unambiguous coordinate pair.
         for key in ["ll", "q", "query", "center", "coordinates"] {
             if let value = q(key), let point = coordinate(value, source: host) { return result([point], host) }
@@ -112,6 +176,15 @@ enum MapParser {
 
     private static func coordinateOrName(_ value: String, _ source: String) -> MapPoint {
         coordinate(value, source: source) ?? MapPoint(name: value, source: source)
+    }
+
+    private static func reversedCoordinate(_ value: String, source: String) -> MapPoint? {
+        let parts = value.split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let longitude = Double(parts[0].trimmingCharacters(in: .whitespaces)),
+              let latitude = Double(parts[1].trimmingCharacters(in: .whitespaces)),
+              (-90...90).contains(latitude), (-180...180).contains(longitude) else { return nil }
+        return MapPoint(latitude: latitude, longitude: longitude, source: source)
     }
 
     private static func coordinate(_ value: String, source: String) -> MapPoint? {

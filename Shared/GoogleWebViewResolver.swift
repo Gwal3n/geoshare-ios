@@ -21,6 +21,12 @@ enum GoogleWebViewResolver {
         for _ in 0..<40 {
             if Task.isCancelled { break }
             try? await Task.sleep(nanoseconds: 750_000_000)
+            if url.path.hasPrefix("/maps/placelists/list/"),
+               let json = (try? await webView.evaluateJavaScript(placeListJavaScript)) as? String,
+               let points = GooglePlaceListParser.points(json), !points.isEmpty {
+                webView.stopLoading()
+                return MapResult(points: points, original: original, service: "Google Maps")
+            }
             let href = (try? await webView.evaluateJavaScript("location.href")) as? String
             guard let current = href.flatMap(URL.init(string:)) ?? webView.url,
                   let host = current.host?.lowercased(),
@@ -38,6 +44,41 @@ enum GoogleWebViewResolver {
         }
         webView.stopLoading()
         return nil
+    }
+
+    // Ported from GeoShare Android's GoogleMapsPlaceListInputImpl: inspect only the
+    // serialized list data in APP_INITIALIZATION_STATE, not the map viewport center.
+    private static let placeListJavaScript = #"""
+    (() => {
+        const state = window.APP_INITIALIZATION_STATE;
+        if (!Array.isArray(state)) return null;
+        const pattern = /\[(?:null,null,|null,\[)([+ ]?-?\d{1,2}(?:\.\d{1,17})?),([+ ]?-?\d{1,3}(?:\.\d{1,17})?)\]/g;
+        for (const item of state) {
+            if (item === null || typeof item !== 'object' || Array.isArray(item)) continue;
+            for (const value of Object.values(item)) {
+                if (!Array.isArray(value)) continue;
+                for (const text of value) {
+                    if (typeof text !== 'string') continue;
+                    const matches = [...text.matchAll(pattern)].map(m => ({lat: Number(m[1]), lon: Number(m[2])}));
+                    if (matches.length) return JSON.stringify(matches);
+                }
+            }
+        }
+        return null;
+    })()
+    """#
+}
+
+enum GooglePlaceListParser {
+    static func points(_ json: String) -> [MapPoint]? {
+        guard let data = json.data(using: .utf8),
+              let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Double]] else { return nil }
+        let points = items.enumerated().compactMap { index, item -> MapPoint? in
+            guard let latitude = item["lat"], let longitude = item["lon"],
+                  (-90...90).contains(latitude), (-180...180).contains(longitude) else { return nil }
+            return MapPoint(latitude: latitude, longitude: longitude, name: "Place \(index + 1)", source: "Google Maps")
+        }
+        return points.isEmpty ? nil : points
     }
 }
 #endif

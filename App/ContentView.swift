@@ -27,18 +27,18 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var model = LocationModel()
-    @AppStorage("customMapName") private var customName = "Custom map"
-    @AppStorage("customMapURL") private var customURL = ""
+    @AppStorage("customMapName", store: ConnectionPreferences.store) private var customName = "Custom map"
+    @AppStorage("customMapURL", store: ConnectionPreferences.store) private var customURL = ""
     @AppStorage(ConnectionPreferences.automaticKey, store: ConnectionPreferences.store) private var automaticallyResolveOnline = false
     @State private var showSettings = false
     @State private var message: String?
+    @FocusState private var inputFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    header
                     inputCard
                     if model.busy { ProgressView("Finding location…").frame(maxWidth: .infinity).padding() }
                     if let error = model.error { Text(error).foregroundStyle(.secondary).padding(.horizontal, 4) }
@@ -47,10 +47,17 @@ struct ContentView: View {
                 }
                 .padding(20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("GeoShare")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Settings", systemImage: "gearshape") { showSettings = true } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Settings", systemImage: "gearshape") { showSettings = true } }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { inputFocused = false }
+                }
+            }
             .sheet(isPresented: $showSettings) { settings }
             .alert("GeoShare", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) { Button("OK", role: .cancel) {} } message: { Text(message ?? "") }
             .onAppear(perform: readInbox)
@@ -59,22 +66,12 @@ struct ContentView: View {
         .tint(Color(red: 0.14, green: 0.44, blue: 0.39))
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: "location.north.circle.fill")
-                .font(.system(size: 42)).foregroundStyle(.teal)
-            Text("One place. Any map.").font(.largeTitle.bold())
-            Text("Paste a map link or share one to GeoShare to find its coordinates and open it where you like.")
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 8)
-    }
-
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("MAP LINK OR COORDINATES").font(.caption.bold()).foregroundStyle(.secondary)
             TextField("https://maps.app.goo.gl/…", text: $model.input, axis: .vertical)
                 .lineLimit(2...5).textInputAutocapitalization(.never).autocorrectionDisabled()
+                .focused($inputFocused)
                 .keyboardType(.URL)
             HStack {
                 Button("Paste", systemImage: "doc.on.clipboard") {
@@ -82,7 +79,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 Spacer()
-                Button("Find location", systemImage: "arrow.right") { model.process() }
+                Button("Find location", systemImage: "arrow.right") { inputFocused = false; model.process() }
                     .buttonStyle(.borderedProminent).disabled(model.input.isEmpty || model.busy)
             }
         }
@@ -94,7 +91,7 @@ struct ContentView: View {
             Label("This link needs a connection", systemImage: "network") .font(.headline)
             Text("GeoShare can visit the map service to follow its short link or read the place coordinates. The service will receive this link and your IP address.")
                 .font(.subheadline).foregroundStyle(.secondary)
-            Button("Resolve online") { model.process(network: true) }.buttonStyle(.borderedProminent)
+            Button("Resolve online") { inputFocused = false; model.process(network: true) }.buttonStyle(.borderedProminent)
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 20))
@@ -180,6 +177,7 @@ struct ContentView: View {
     private func readInbox() {
         guard let value = SharedInbox.take() else { return }
         model.input = value
+        inputFocused = false
         model.process()
     }
 

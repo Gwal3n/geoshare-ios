@@ -9,6 +9,14 @@ struct ParserSmoke {
         check("https://omaps.app/Umse5f0H8a/Nova_Iorque", 40.7127405, -74.005997)
         check("https://comaps.at/o4MnIOApKp/Kreuzberg", 52.4877386, 13.3815233)
         check("https://osm.org/go/0EEQjE--", 51.510772705078125, 0.054931640625)
+        check("https://osmand.net/map?pin=52.51628,13.37771", 52.51628, 13.37771)
+        check("https://mapy.com/en/zakladni?x=14.0184810&y=50.0525078&z=9", 50.0525078, 14.0184810)
+        check("https://magicearth.com/?show_on_map&lat=48.85649&lon=2.35216", 48.85649, 2.35216)
+        check("https://cartes-ign.ign.fr?lng=-120.123456&lat=50.123456&z=3.14", 50.123456, -120.123456)
+        check("https://kagi.com/maps/#16.13/50.735739/15.7395", 50.735739, 15.7395)
+        check("https://map.yahoo.co.jp/place?lat=35.04038&lon=135.72895", 35.04038, 135.72895)
+        check("https://2gis.ae/dubai/geo/55.171971%2C25.289452", 25.289452, 55.171971)
+        check("https://mapy.com/en/zakladni?id=121.4684%2C31.2228", 31.2228, 121.4684)
         print("Parser smoke tests passed")
     }
 

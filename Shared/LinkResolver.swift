@@ -32,6 +32,12 @@ enum LinkResolver {
                 html = String(decoding: fresh.0.prefix(2_000_000), as: UTF8.self)
             }
         }
+        #if os(iOS)
+        if let finalURL, isGoogle(finalURL), finalURL.path.hasPrefix("/maps/placelists/list/") {
+            if let list = await GoogleWebViewResolver.resolve(finalURL, original: input) { return list }
+            throw ResolveError.noLocation
+        }
+        #endif
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil { return parsed }
         if let finalURL, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
             do {
@@ -115,7 +121,7 @@ enum LinkResolver {
     }
 
     private static func isAllowed(_ host: String) -> Bool {
-        let domains = ["google.com", "goo.gl", "apple.com", "maps.apple", "openstreetmap.org", "osm.org", "omaps.app", "comaps.at", "ge0.me", "waze.com", "here.com"]
+        let domains = ["google.com", "goo.gl", "apple.com", "maps.apple", "openstreetmap.org", "osm.org", "omaps.app", "comaps.at", "ge0.me", "waze.com", "here.com", "osmand.net", "mapy.com", "mapy.cz", "magicearth.com", "cartes-ign.ign.fr", "kagi.com", "yahoo.co.jp", "yahoo.com", "2gis.ae", "2gis.am", "2gis.az", "2gis.com", "2gis.cz", "2gis.kg", "2gis.kz", "2gis.ru", "2gis.uz", "urbi.ae"]
         return domains.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 
