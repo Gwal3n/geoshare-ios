@@ -1,0 +1,26 @@
+name: Build iOS app
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build unsigned app
+        run: |
+          xcodebuild -project GeoShare.xcodeproj -scheme GeoShare -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Package app
+        run: |
+          mkdir -p payload/Payload
+          cp -R build/Build/Products/Release-iphoneos/GeoShare.app payload/Payload/
+          cd payload && zip -qr ../GeoShare-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeoShare-unsigned-ipa
+          path: GeoShare-unsigned.ipa

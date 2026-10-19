@@ -1,0 +1,7 @@
+GeoShare for iOS is an independent Swift implementation inspired by GeoShare for Android.
+Copyright 2026 GeoShare for iOS contributors.
+
+GeoShare for Android copyright 2024-2026 Jakub Valenta and contributors.
+https://github.com/jakubvalenta/geoshare
+
+Its documented link formats and parser behavior informed this implementation.
