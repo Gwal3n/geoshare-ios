@@ -17,6 +17,15 @@ struct ParserSmoke {
         check("https://map.yahoo.co.jp/place?lat=35.04038&lon=135.72895", 35.04038, 135.72895)
         check("https://2gis.ae/dubai/geo/55.171971%2C25.289452", 25.289452, 55.171971)
         check("https://mapy.com/en/zakladni?id=121.4684%2C31.2228", 31.2228, 121.4684)
+        let listURL = URL(string: "https://www.google.com/maps/placelists/list/mfmnkPs6RuGyp0HOmXLSKg")!
+        guard let api = GooglePlaceListParser.apiURL(for: listURL), api.absoluteString.contains("mfmnkPs6RuGyp0HOmXLSKg") else {
+            fatalError("Google list API URL was not constructed")
+        }
+        let sample = ")]}'\n[[null,[null,null,\"\",null,\"\",[null,null,59.1293656,11.4585672]],\"The Ford\"],[null,[null,null,\"\",null,\"\",[null,null,59.4154007,11.6597106]],\"Kirkebyøya\"]]"
+        guard let points = GooglePlaceListParser.points(data: Data(sample.utf8)), points.count == 2,
+              points[0].name == "The Ford", points[1].latitude == 59.4154007 else {
+            fatalError("Google list data was not parsed")
+        }
         print("Parser smoke tests passed")
     }
 

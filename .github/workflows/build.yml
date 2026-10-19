@@ -25,12 +25,8 @@ jobs:
         run: xcodegen generate
       - name: Test map parsing
         run: |
-          swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Tests/ParserSmoke.swift -o parser-smoke
+          swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Shared/GooglePlaceListParser.swift Tests/ParserSmoke.swift -o parser-smoke
           ./parser-smoke
-      - name: Test Google Maps short link
-        run: |
-          swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Shared/GooglePlaceListParser.swift Shared/LinkResolver.swift Tests/LiveLinkSmoke.swift -o live-link-smoke
-          ./live-link-smoke
       - name: Build unsigned app
         run: |
           xcodebuild -project GeoShare.xcodeproj -scheme GeoShare -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
@@ -43,6 +39,11 @@ jobs:
         with:
           name: GeoShare-unsigned-ipa
           path: GeoShare-unsigned.ipa
+      - name: Check live Google links
+        continue-on-error: true
+        run: |
+          swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Shared/GooglePlaceListParser.swift Shared/LinkResolver.swift Tests/LiveLinkSmoke.swift -o live-link-smoke
+          ./live-link-smoke
   test-ios:
     runs-on: macos-26
     steps:
