@@ -19,10 +19,22 @@ targets:
       - path: App
     info:
       path: App/Info.plist
+      properties:
+        CFBundleDisplayName: GeoShare
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [geoshareios]
+        LSApplicationQueriesSchemes: [om, cm, comgooglemaps, waze]
+        UILaunchStoryboardName: LaunchScreen
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.gwal3n.geoshare
-        INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/GeoShare.entitlements
     dependencies:
       - target: GeoShareShare
@@ -35,10 +47,20 @@ targets:
       - path: ShareExtension
     info:
       path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: GeoShare
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: '$(PRODUCT_MODULE_NAME).ShareViewController'
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.gwal3n.geoshare.share
-        INFOPLIST_FILE: ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
   GeoShareTests:
