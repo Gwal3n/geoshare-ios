@@ -24,14 +24,24 @@ enum LinkResolver {
         if let finalURL = response.url, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil { return parsed }
         let html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
         if let finalURL = response.url, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
-            let (previewData, _) = try await URLSession.shared.data(for: mapRequest(previewURL))
-            if let point = googlePlacePreviewPoint(previewData, name: URLComponents(url: finalURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value) {
-                return MapResult(points: [point], original: input, service: "Google Maps")
+            do {
+                let (previewData, _) = try await URLSession.shared.data(for: mapRequest(previewURL))
+                if let point = googlePlacePreviewPoint(previewData, name: URLComponents(url: finalURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value) {
+                    return MapResult(points: [point], original: input, service: "Google Maps")
+                }
+            } catch {
+                // Continue with page parsing and the browser fallback.
             }
         }
         if let lat = meta(html, key: "place:location:latitude"), let lon = meta(html, key: "place:location:longitude"), let result = MapParser.parse("\(lat),\(lon)") {
             return MapResult(points: result.points, original: input, service: host)
         }
+        #if os(iOS)
+        if let finalURL = response.url, isGoogle(finalURL),
+           let result = await GoogleWebViewResolver.resolve(finalURL, original: input) {
+            return result
+        }
+        #endif
         // Google may return a generic map centered on the requester's IP address.
         // Never treat that center as the shared place's coordinates.
         if !html.contains("<meta content=\"Google Maps\" itemprop=\"name\">") {

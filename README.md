@@ -19,6 +19,8 @@ Offline extraction covers coordinate pairs, `geo:` links, Google Maps place and 
 
 The iOS Share extension cannot reliably launch another app directly under Apple's supported extension APIs. It can copy coordinates or a `geo:` link, share an Apple Maps link, and save the link for the main app. Open GeoShare to choose a destination app. This differs from Android GeoShare's one step chooser. Other Android features, including full provider parity, place list API extraction, contact saving, and automatic actions, are not implemented yet.
 
+In Settings, **Connect automatically** allows online resolution without prompting for each link. The setting applies to the app and its Share extension. Settings also shows the installed app version so you can check that the latest IPA is installed.
+
 ## Credit and license
 
 Parsing behavior was informed by GeoShare's public URL cases and documentation. This project is an independent Swift implementation. See [NOTICE](NOTICE) and [COPYING](COPYING).
