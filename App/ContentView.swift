@@ -13,10 +13,11 @@ import UIKit
         let value = input
         Task {
             do {
-                result = try await LinkResolver.resolve(value, allowNetwork: network)
-                if result?.selected?.coordinateText == nil { needsNetwork = !network }
+                let allowNetwork = network || ConnectionPreferences.automaticallyResolveOnline
+                result = try await LinkResolver.resolve(value, allowNetwork: allowNetwork)
+                if result?.selected?.coordinateText == nil { needsNetwork = !allowNetwork }
             } catch {
-                if !network, MapParser.extractURL(value) != nil { needsNetwork = true }
+                if !network && !ConnectionPreferences.automaticallyResolveOnline && MapParser.extractURL(value) != nil { needsNetwork = true }
                 self.error = error.localizedDescription
             }
             busy = false
@@ -28,6 +29,7 @@ struct ContentView: View {
     @StateObject private var model = LocationModel()
     @AppStorage("customMapName") private var customName = "Custom map"
     @AppStorage("customMapURL") private var customURL = ""
+    @AppStorage(ConnectionPreferences.automaticKey, store: ConnectionPreferences.store) private var automaticallyResolveOnline = false
     @State private var showSettings = false
     @State private var message: String?
     @Environment(\.scenePhase) private var scenePhase
@@ -154,7 +156,14 @@ struct ContentView: View {
                     Text("Use {lat}, {lon}, {coords}, and {name}. Example: https://example.org/?q={coords}")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                Section("Privacy") { Text("Links with coordinates are processed on device. GeoShare only connects to a map service after you choose Resolve online.") }
+                Section("Online resolution") {
+                    Toggle("Connect automatically", isOn: $automaticallyResolveOnline)
+                    Text("When a link has no coordinates, connect to its map service without asking each time. The service receives the link and your IP address. Links with coordinates are still processed on device.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("About") {
+                    Text("Version 0.2.0 (2)")
+                }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showSettings = false } } }

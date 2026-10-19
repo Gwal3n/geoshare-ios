@@ -45,6 +45,7 @@ private struct ShareContentView: View {
     @State private var busy = false
     @State private var needsNetwork = false
     @State private var shareURL: URL?
+    @AppStorage(ConnectionPreferences.automaticKey, store: ConnectionPreferences.store) private var automaticallyResolveOnline = false
 
     var body: some View {
         NavigationStack {
@@ -98,10 +99,10 @@ private struct ShareContentView: View {
     private func process(network: Bool = false) {
         busy = true; error = nil; needsNetwork = false
         Task { @MainActor in
-            do { result = try await LinkResolver.resolve(input, allowNetwork: network) }
+            do { result = try await LinkResolver.resolve(input, allowNetwork: network || automaticallyResolveOnline) }
             catch {
                 self.error = error.localizedDescription
-                if !network, MapParser.extractURL(input) != nil { needsNetwork = true }
+                if !network && !automaticallyResolveOnline && MapParser.extractURL(input) != nil { needsNetwork = true }
             }
             busy = false
         }

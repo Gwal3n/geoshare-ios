@@ -26,6 +26,9 @@ jobs:
         run: |
           swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Shared/LinkResolver.swift Tests/LiveLinkSmoke.swift -o live-link-smoke
           ./live-link-smoke
+      - name: Test link on iOS simulator
+        run: |
+          xcodebuild -project GeoShare.xcodeproj -scheme GeoShare -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.2' -derivedDataPath build CODE_SIGNING_ALLOWED=NO test
       - name: Build unsigned app
         run: |
           xcodebuild -project GeoShare.xcodeproj -scheme GeoShare -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build

@@ -6,6 +6,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: '5.9'
+    MARKETING_VERSION: '0.2.0'
+    CURRENT_PROJECT_VERSION: '2'
     TARGETED_DEVICE_FAMILY: '1,2'
     IPHONEOS_DEPLOYMENT_TARGET: '17.0'
 targets:
@@ -39,6 +41,17 @@ targets:
         INFOPLIST_FILE: ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
+  GeoShareTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/iOS
+    dependencies:
+      - target: GeoShare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gwal3n.geoshare.tests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   GeoShare:
     build:
@@ -46,3 +59,6 @@ schemes:
         GeoShare: all
     run:
       config: Debug
+    test:
+      targets:
+        - GeoShareTests
