@@ -87,9 +87,9 @@ enum LinkResolver {
     }
 
     private static func googlePlaceName(_ url: URL) -> String? {
-        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-            .first(where: { $0.name == "q" })?.value?
-            .replacingOccurrences(of: "+", with: " ")
+        guard let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first(where: { $0.name == "q" })?.value else { return nil }
+        return name.replacingOccurrences(of: "+", with: " ")
     }
 
     private static func googlePlacePreviewURL(_ html: String, base: URL) -> URL? {
