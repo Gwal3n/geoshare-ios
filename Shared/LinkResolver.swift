@@ -36,7 +36,7 @@ enum LinkResolver {
         if let finalURL, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
             do {
                 let (previewData, _) = try await URLSession.shared.data(for: mapRequest(previewURL))
-                if let point = googlePlacePreviewPoint(previewData, name: URLComponents(url: finalURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value) {
+                if let point = googlePlacePreviewPoint(previewData, name: googlePlaceName(finalURL)) {
                     return MapResult(points: [point], original: input, service: "Google Maps")
                 }
             } catch {
@@ -84,6 +84,12 @@ enum LinkResolver {
               let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "continue" })?.value,
               let next = URL(string: value), next.scheme == "https", isGoogle(next) else { return nil }
         return next
+    }
+
+    private static func googlePlaceName(_ url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first(where: { $0.name == "q" })?.value?
+            .replacingOccurrences(of: "+", with: " ")
     }
 
     private static func googlePlacePreviewURL(_ html: String, base: URL) -> URL? {

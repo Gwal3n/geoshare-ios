@@ -9,6 +9,9 @@ struct LiveLinkSmoke {
               abs(latitude - 36.1568986) < 0.001, abs(longitude - -95.9915366) < 0.001 else {
             fatalError("Failed to resolve the shared Tulsa place: \(String(describing: result.selected))")
         }
+        guard point.name?.contains("Center of the Universe") == true else {
+            fatalError("Google place name was lost: \(String(describing: point.name))")
+        }
         print("Google Maps short link resolved to \(point.coordinateText ?? "missing coordinates")")
     }
 }
