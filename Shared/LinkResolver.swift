@@ -21,9 +21,19 @@ enum LinkResolver {
         guard let url = MapParser.extractURL(input), url.scheme == "https", let host = url.host?.lowercased(), isAllowed(host) else { throw ResolveError.unsafeURL }
         let request = mapRequest(url)
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let finalURL = response.url, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil { return parsed }
-        let html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
-        if let finalURL = response.url, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
+        var finalURL = response.url
+        var html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
+        // Cookies on a short-link request do not necessarily carry over to Google
+        // after URLSession follows the cross-domain redirect on iOS.
+        if let redirectedURL = finalURL, isGoogle(redirectedURL), !isGoogle(url) {
+            let mapURL = consentContinueURL(redirectedURL) ?? redirectedURL
+            if let (freshData, freshResponse) = try? await URLSession.shared.data(for: mapRequest(mapURL)) {
+                finalURL = freshResponse.url
+                html = String(decoding: freshData.prefix(2_000_000), as: UTF8.self)
+            }
+        }
+        if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil { return parsed }
+        if let finalURL, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
             do {
                 let (previewData, _) = try await URLSession.shared.data(for: mapRequest(previewURL))
                 if let point = googlePlacePreviewPoint(previewData, name: URLComponents(url: finalURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value) {
@@ -37,7 +47,7 @@ enum LinkResolver {
             return MapResult(points: result.points, original: input, service: host)
         }
         #if os(iOS)
-        if let finalURL = response.url, isGoogle(finalURL),
+        if let finalURL, isGoogle(finalURL),
            let result = await GoogleWebViewResolver.resolve(finalURL, original: input) {
             return result
         }
@@ -67,6 +77,13 @@ enum LinkResolver {
     private static func isGoogle(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         return host == "google.com" || host.hasSuffix(".google.com")
+    }
+
+    private static func consentContinueURL(_ url: URL) -> URL? {
+        guard url.host?.hasPrefix("consent.google.") == true,
+              let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "continue" })?.value,
+              let next = URL(string: value), next.scheme == "https", isGoogle(next) else { return nil }
+        return next
     }
 
     private static func googlePlacePreviewURL(_ html: String, base: URL) -> URL? {
