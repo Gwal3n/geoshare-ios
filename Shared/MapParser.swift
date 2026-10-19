@@ -82,6 +82,7 @@ enum MapParser {
         }
         if host == "openstreetmap.org" || host == "www.openstreetmap.org" || host == "osm.org" {
             let service = "OpenStreetMap"
+            if url.pathComponents.count > 2, url.pathComponents[1] == "go", let point = GeoHash.osm(url.pathComponents[2]) { return result([point], service) }
             if let lat = q("mlat") ?? q("lat"), let lon = q("mlon") ?? q("lon"), let point = coordinate("\(lat),\(lon)", source: service) { return result([point], service) }
             if let value = q("to"), let point = coordinate(value, source: service) { return result([point], service) }
             let fragment = url.fragment ?? ""
@@ -95,7 +96,12 @@ enum MapParser {
             if let point = regexPoint(text, pattern: "map=\(pair)", source: "HERE WeGo") { return result([point], "HERE WeGo") }
         }
         if host == "omaps.app" || host == "comaps.at" || host == "ge0.me" {
-            if let value = q("ll"), let point = coordinate(value, source: "Organic Maps / CoMaps") { return result([point], "Organic Maps / CoMaps") }
+            let service = host == "comaps.at" ? "CoMaps" : "Organic Maps"
+            if let value = q("ll"), let point = coordinate(value, source: service) { return result([point], service) }
+            if url.pathComponents.count > 1, var point = GeoHash.ge0(url.pathComponents[1], source: service) {
+                if url.pathComponents.count > 2 { point.name = url.pathComponents[2].replacingOccurrences(of: "_", with: " ") }
+                return result([point], service)
+            }
         }
         // Unknown providers sometimes expose an unambiguous coordinate pair.
         for key in ["ll", "q", "query", "center", "coordinates"] {

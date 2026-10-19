@@ -15,7 +15,7 @@ Select your development team and register the app group `group.app.gwal3n.geosha
 
 ## Current link support
 
-Offline extraction covers coordinate pairs, `geo:` links, Google Maps place and direction URLs, Apple Maps, OpenStreetMap, Waze, and common coordinate queries. Short links such as `maps.app.goo.gl` are followed only after the user taps **Resolve online**. A map service may omit coordinates or change its page format; in that case conversion can fail or return a place name only.
+Offline extraction covers coordinate pairs, `geo:` links, Google Maps place and direction URLs, Apple Maps, OpenStreetMap, Waze, and Organic Maps/CoMaps short links. Short links such as `maps.app.goo.gl` are followed only after the user taps **Resolve online**. A map service may omit coordinates or change its page format; in that case conversion can fail or return a place name only.
 
 The iOS Share extension cannot reliably launch another app directly under Apple's supported extension APIs. It can copy coordinates or a `geo:` link, share an Apple Maps link, and save the link for the main app. Open GeoShare to choose a destination app. This differs from Android GeoShare's one step chooser. Other Android features, including full provider parity, place list API extraction, contact saving, and automatic actions, are not implemented yet.
 

@@ -12,6 +12,10 @@ jobs:
         run: brew install xcodegen
       - name: Generate Xcode project
         run: xcodegen generate
+      - name: Test map parsing
+        run: |
+          swiftc Shared/Location.swift Shared/GeoHash.swift Shared/MapParser.swift Tests/ParserSmoke.swift -o parser-smoke
+          ./parser-smoke
       - name: Build unsigned app
         run: |
           xcodebuild -project GeoShare.xcodeproj -scheme GeoShare -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build

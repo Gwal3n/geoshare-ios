@@ -4,5 +4,9 @@
 <key>CFBundleDisplayName</key><string>GeoShare</string>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>geoshareios</string></array></dict></array>
 <key>LSApplicationQueriesSchemes</key><array><string>om</string><string>cm</string><string>comgooglemaps</string><string>waze</string></array>
-<key>UILaunchScreen</key><dict/>
+<key>UILaunchStoryboardName</key><string>LaunchScreen</string>
+<key>UISupportedInterfaceOrientations</key><array>
+<string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string>
+<string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string>
+</array>
 </dict></plist>
