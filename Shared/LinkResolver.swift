@@ -27,9 +27,9 @@ enum LinkResolver {
         // after URLSession follows the cross-domain redirect on iOS.
         if let redirectedURL = finalURL, isGoogle(redirectedURL), !isGoogle(url) {
             let mapURL = consentContinueURL(redirectedURL) ?? redirectedURL
-            if let (freshData, freshResponse) = try? await URLSession.shared.data(for: mapRequest(mapURL)) {
-                finalURL = freshResponse.url
-                html = String(decoding: freshData.prefix(2_000_000), as: UTF8.self)
+            if let fresh = try? await URLSession.shared.data(for: mapRequest(mapURL)) {
+                finalURL = fresh.1.url
+                html = String(decoding: fresh.0.prefix(2_000_000), as: UTF8.self)
             }
         }
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil { return parsed }
