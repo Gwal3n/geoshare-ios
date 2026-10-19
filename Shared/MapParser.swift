@@ -86,7 +86,7 @@ enum MapParser {
             if let lat = q("mlat") ?? q("lat"), let lon = q("mlon") ?? q("lon"), let point = coordinate("\(lat),\(lon)", source: service) { return result([point], service) }
             if let value = q("to"), let point = coordinate(value, source: service) { return result([point], service) }
             let fragment = url.fragment ?? ""
-            if let point = regexPoint(fragment, pattern: "map=\\d+(?:\\.\\d+)?/\(pair)", source: service) { return result([point], service) }
+            if let point = regexPoint(fragment, pattern: "map=\\d+(?:\\.\\d+)?/(\(number))/(\(number))", source: service) { return result([point], service) }
             return nil
         }
         if host == "waze.com" || host == "www.waze.com" {
