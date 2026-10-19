@@ -162,12 +162,19 @@ struct ContentView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("About") {
-                    Text("Version 0.2.0 (2)")
+                    Text("Version \(appVersion)")
                 }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showSettings = false } } }
         }
+    }
+
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
     }
 
     private func readInbox() {
