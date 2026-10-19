@@ -27,6 +27,8 @@ This app covers the core share/paste, coordinate extraction, and open-in-another
 
 In Settings, **Connect automatically** allows online resolution without prompting for each link. The setting applies to the app and its Share extension. Settings also shows the installed app version so you can check that the latest IPA is installed.
 
+The Share extension also offers **Always resolve online** when automatic resolution is off. This saves the choice for later shares. When signing the IPA, keep the `group.app.gwal3n.geoshare` App Group entitlement on both targets so the main app's setting is shared with the extension.
+
 ## Credit and license
 
 Parsing behavior was informed by GeoShare's public URL cases and documentation. This project is an independent Swift implementation. See [NOTICE](NOTICE) and [COPYING](COPYING).

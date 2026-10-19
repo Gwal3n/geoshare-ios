@@ -78,6 +78,7 @@ private struct ShareContentView: View {
                         Text("This link needs an online lookup. The map service will receive the link and your IP address.")
                             .font(.subheadline)
                         Button("Resolve online") { process(network: true) }.buttonStyle(.borderedProminent)
+                        Button("Always resolve online") { automaticallyResolveOnline = true; process(network: true) }
                     }
                     if let result {
                         ForEach(Array(result.points.enumerated()), id: \.element.id) { index, point in
@@ -126,17 +127,22 @@ private struct ShareContentView: View {
             .onChange(of: input, initial: true) { _, sharedLink in
                 if !sharedLink.isEmpty { process() }
             }
+            .onChange(of: automaticallyResolveOnline) { _, enabled in
+                if enabled && needsNetwork { process() }
+            }
         }
         .tint(Color(red: 0.14, green: 0.44, blue: 0.39))
     }
 
     private func process(network: Bool = false) {
         busy = true; result = nil; error = nil; needsNetwork = false
+        let sharedLink = input
+        let allowNetwork = network || ConnectionPreferences.automaticallyResolveOnline
         Task { @MainActor in
-            do { result = try await LinkResolver.resolve(input, allowNetwork: network || automaticallyResolveOnline) }
+            do { result = try await LinkResolver.resolve(sharedLink, allowNetwork: allowNetwork) }
             catch {
                 self.error = error.localizedDescription
-                if !network && !automaticallyResolveOnline && MapParser.extractURL(input) != nil { needsNetwork = true }
+                if !allowNetwork && MapParser.extractURL(sharedLink) != nil { needsNetwork = true }
             }
             busy = false
         }

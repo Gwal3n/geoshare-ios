@@ -28,6 +28,15 @@ enum LinkResolver {
         let (data, response) = try await URLSession.shared.data(for: request)
         var finalURL = response.url
         var html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
+        if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
+            return withGoogleName(parsed, from: finalURL)
+        }
+        // Short links often redirect to a page that already exposes the place
+        // preview endpoint. Use it before requesting the Google page again.
+        if let finalURL, isGoogle(finalURL), !finalURL.path.hasPrefix("/maps/placelists/list/"),
+           let result = await googlePlacePreviewResult(html: html, url: finalURL, original: input) {
+            return result
+        }
         // Cookies on a short-link request do not necessarily carry over to Google
         // after URLSession follows the cross-domain redirect on iOS.
         if let redirectedURL = finalURL, isGoogle(redirectedURL), !isGoogle(url) {
@@ -51,15 +60,9 @@ enum LinkResolver {
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
             return withGoogleName(parsed, from: finalURL)
         }
-        if let finalURL, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
-            do {
-                let (previewData, _) = try await URLSession.shared.data(for: mapRequest(previewURL))
-                if let point = googlePlacePreviewPoint(previewData, name: googlePlaceName(finalURL)) {
-                    return MapResult(points: [point], original: input, service: "Google Maps")
-                }
-            } catch {
-                // Continue with page parsing and the browser fallback.
-            }
+        if let finalURL, isGoogle(finalURL),
+           let result = await googlePlacePreviewResult(html: html, url: finalURL, original: input) {
+            return result
         }
         if let lat = meta(html, key: "place:location:latitude"), let lon = meta(html, key: "place:location:longitude"), let result = MapParser.parse("\(lat),\(lon)") {
             return MapResult(points: result.points, original: input, service: host)
@@ -135,6 +138,13 @@ enum LinkResolver {
         let value = String(html[range]).replacingOccurrences(of: "&amp;", with: "&")
         guard let url = URL(string: value, relativeTo: base)?.absoluteURL, isGoogle(url), url.path == "/maps/preview/place" else { return nil }
         return url
+    }
+
+    private static func googlePlacePreviewResult(html: String, url: URL, original: String) async -> MapResult? {
+        guard let previewURL = googlePlacePreviewURL(html, base: url),
+              let response = try? await URLSession.shared.data(for: mapRequest(previewURL)),
+              let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url)) else { return nil }
+        return MapResult(points: [point], original: original, service: "Google Maps")
     }
 
     static func googlePlacePreviewPoint(_ data: Data, name: String?) -> MapPoint? {
