@@ -17,7 +17,7 @@ import UIKit
                 if result?.selected?.coordinateText == nil { needsNetwork = !network }
             } catch {
                 if !network, MapParser.extractURL(value) != nil { needsNetwork = true }
-                error = error.localizedDescription
+                self.error = error.localizedDescription
             }
             busy = false
         }

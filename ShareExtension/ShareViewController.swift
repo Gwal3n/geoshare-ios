@@ -100,7 +100,7 @@ private struct ShareContentView: View {
         Task { @MainActor in
             do { result = try await LinkResolver.resolve(input, allowNetwork: network) }
             catch {
-                error = error.localizedDescription
+                self.error = error.localizedDescription
                 if !network, MapParser.extractURL(input) != nil { needsNetwork = true }
             }
             busy = false
