@@ -32,12 +32,17 @@ enum LinkResolver {
                 html = String(decoding: fresh.0.prefix(2_000_000), as: UTF8.self)
             }
         }
-        #if os(iOS)
         if let finalURL, isGoogle(finalURL), finalURL.path.hasPrefix("/maps/placelists/list/") {
+            if let endpoint = GooglePlaceListParser.endpointURL(html: html, base: finalURL),
+               let response = try? await URLSession.shared.data(for: mapRequest(endpoint)),
+               let points = GooglePlaceListParser.points(data: response.0) {
+                return MapResult(points: points, original: input, service: "Google Maps")
+            }
+            #if os(iOS)
             if let list = await GoogleWebViewResolver.resolve(finalURL, original: input) { return list }
+            #endif
             throw ResolveError.noLocation
         }
-        #endif
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
             return withGoogleName(parsed, from: finalURL)
         }

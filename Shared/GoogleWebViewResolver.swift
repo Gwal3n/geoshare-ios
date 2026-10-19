@@ -73,17 +73,4 @@ enum GoogleWebViewResolver {
     })()
     """#
 }
-
-enum GooglePlaceListParser {
-    static func points(_ json: String) -> [MapPoint]? {
-        guard let data = json.data(using: .utf8),
-              let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Double]] else { return nil }
-        let points = items.enumerated().compactMap { index, item -> MapPoint? in
-            guard let latitude = item["lat"], let longitude = item["lon"],
-                  (-90...90).contains(latitude), (-180...180).contains(longitude) else { return nil }
-            return MapPoint(latitude: latitude, longitude: longitude, name: "Place \(index + 1)", source: "Google Maps")
-        }
-        return points.isEmpty ? nil : points
-    }
-}
 #endif

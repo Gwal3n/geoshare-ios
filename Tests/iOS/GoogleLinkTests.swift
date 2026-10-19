@@ -15,6 +15,7 @@ final class GoogleLinkTests: XCTestCase {
         XCTAssertEqual(result.points.count, 8)
         XCTAssertEqual(try XCTUnwrap(result.points.first?.latitude), 59.1293656, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(result.points.first?.longitude), 11.4585672, accuracy: 0.001)
+        XCTAssertEqual(result.points.first?.name, "The Ford")
     }
 
     func testPlaceListJSONRejectsOutOfRangeCoordinates() {
