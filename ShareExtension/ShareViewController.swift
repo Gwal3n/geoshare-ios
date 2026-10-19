@@ -123,13 +123,15 @@ private struct ShareContentView: View {
             .navigationTitle("GeoShare")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done", action: close) } }
-            .onAppear { if !input.isEmpty { process() } }
+            .onChange(of: input, initial: true) { _, sharedLink in
+                if !sharedLink.isEmpty { process() }
+            }
         }
         .tint(Color(red: 0.14, green: 0.44, blue: 0.39))
     }
 
     private func process(network: Bool = false) {
-        busy = true; error = nil; needsNetwork = false
+        busy = true; result = nil; error = nil; needsNetwork = false
         Task { @MainActor in
             do { result = try await LinkResolver.resolve(input, allowNetwork: network || automaticallyResolveOnline) }
             catch {
