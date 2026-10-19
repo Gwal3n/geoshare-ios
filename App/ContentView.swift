@@ -119,6 +119,14 @@ struct ContentView: View {
                             Button("Copy coordinates", systemImage: "doc.on.doc") { UIPasteboard.general.string = coordinates }
                             if let geo = point.geoURL { Button("Copy geo: link") { UIPasteboard.general.string = geo.absoluteString } }
                         }.font(.subheadline)
+                        if result.points.count > 1 {
+                            Menu("Open in…", systemImage: "arrow.up.right") {
+                                ForEach(MapTarget.allCases) { target in
+                                    Button(target.rawValue) { open(target, point) }
+                                }
+                                if !customURL.isEmpty { Button(customName) { openCustom(point) } }
+                            }
+                        }
                     } else { Text("Coordinates unavailable; the name may be ambiguous.").font(.subheadline).foregroundStyle(.secondary) }
                 }
                 .padding(14).frame(maxWidth: .infinity, alignment: .leading)
@@ -126,7 +134,8 @@ struct ContentView: View {
             }
             if let point = result.selected, point.coordinateText != nil {
                 Divider()
-                Text("OPEN IN").font(.caption.bold()).foregroundStyle(.secondary)
+                Text(result.points.count > 1 ? "OPEN LAST POINT IN" : "OPEN IN")
+                    .font(.caption.bold()).foregroundStyle(.secondary)
                 ForEach(MapTarget.allCases) { target in
                     Button { open(target, point) } label: {
                         HStack { Label(target.rawValue, systemImage: target.symbol); Spacer(); Image(systemName: "arrow.up.right") }

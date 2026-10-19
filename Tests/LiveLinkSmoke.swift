@@ -13,6 +13,7 @@ struct LiveLinkSmoke {
             fatalError("Google place name was lost: \(String(describing: point.name))")
         }
         print("Google Maps short link resolved to \(point.coordinateText ?? "missing coordinates")")
+        fflush(stdout)
 
         let list = try await LinkResolver.resolve("https://www.google.com/maps/placelists/list/mfmnkPs6RuGyp0HOmXLSKg", allowNetwork: true)
         guard list.points.count == 8,

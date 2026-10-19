@@ -19,6 +19,11 @@ enum LinkResolver {
         if let offline = MapParser.parse(input), offline.selected?.latitude != nil { return offline }
         guard allowNetwork else { throw ResolveError.unsupported }
         guard let url = MapParser.extractURL(input), url.scheme == "https", let host = url.host?.lowercased(), isAllowed(host) else { throw ResolveError.unsafeURL }
+        if isGoogle(url), let apiURL = GooglePlaceListParser.apiURL(for: url),
+           let response = try? await URLSession.shared.data(for: mapRequest(apiURL)),
+           let points = GooglePlaceListParser.points(data: response.0) {
+            return MapResult(points: points, original: input, service: "Google Maps")
+        }
         let request = mapRequest(url)
         let (data, response) = try await URLSession.shared.data(for: request)
         var finalURL = response.url

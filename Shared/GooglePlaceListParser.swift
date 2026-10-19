@@ -1,6 +1,20 @@
 import Foundation
 
 enum GooglePlaceListParser {
+    static func apiURL(for listURL: URL) -> URL? {
+        guard listURL.path.hasPrefix("/maps/placelists/list/"),
+              let id = listURL.pathComponents.last,
+              id.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil,
+              var components = URLComponents(string: "https://www.google.com/maps/preview/entitylist/getlist") else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "authuser", value: "0"),
+            URLQueryItem(name: "hl", value: "en"),
+            URLQueryItem(name: "gl", value: "us"),
+            URLQueryItem(name: "pb", value: "!1m1!1s\(id)!2e2!3e2!4i500")
+        ]
+        return components.url
+    }
+
     static func endpointURL(html: String, base: URL) -> URL? {
         let pattern = #"<link\s+href="([^"]*?/maps/preview/entitylist/getlist\?[^"]+)""#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
