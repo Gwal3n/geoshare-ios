@@ -9,7 +9,7 @@ enum GoogleWebViewResolver {
     static func resolve(_ url: URL, original: String) async -> MapResult? {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
-        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 2, height: 2), configuration: configuration)
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1024, height: 768), configuration: configuration)
         webView.customUserAgent = desktopUserAgent
         var request = URLRequest(url: url)
         request.timeoutInterval = 25
@@ -41,6 +41,11 @@ enum GoogleWebViewResolver {
                 webView.stopLoading()
                 return result
             }
+        }
+        if url.path.hasPrefix("/maps/placelists/list/") {
+            let title = (try? await webView.evaluateJavaScript("document.title")) as? String ?? "unknown"
+            let stateType = (try? await webView.evaluateJavaScript("typeof window.APP_INITIALIZATION_STATE")) as? String ?? "unknown"
+            print("Google place list unresolved; URL=\(webView.url?.absoluteString ?? "unknown") title=\(title) state=\(stateType)")
         }
         webView.stopLoading()
         return nil

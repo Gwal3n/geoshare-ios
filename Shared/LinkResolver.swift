@@ -38,7 +38,9 @@ enum LinkResolver {
             throw ResolveError.noLocation
         }
         #endif
-        if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil { return parsed }
+        if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
+            return withGoogleName(parsed, from: finalURL)
+        }
         if let finalURL, isGoogle(finalURL), let previewURL = googlePlacePreviewURL(html, base: finalURL) {
             do {
                 let (previewData, _) = try await URLSession.shared.data(for: mapRequest(previewURL))
@@ -55,7 +57,7 @@ enum LinkResolver {
         #if os(iOS)
         if let finalURL, isGoogle(finalURL),
            let result = await GoogleWebViewResolver.resolve(finalURL, original: input) {
-            return result
+            return withGoogleName(result, from: finalURL)
         }
         #endif
         // Google may return a generic map centered on the requester's IP address.
@@ -93,9 +95,26 @@ enum LinkResolver {
     }
 
     private static func googlePlaceName(_ url: URL) -> String? {
-        guard let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-            .first(where: { $0.name == "q" })?.value else { return nil }
-        return name.replacingOccurrences(of: "+", with: " ")
+        if let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first(where: { $0.name == "q" || $0.name == "query" })?.value, !name.isEmpty {
+            return name.replacingOccurrences(of: "+", with: " ")
+        }
+        let parts = url.pathComponents
+        if let index = parts.firstIndex(of: "place"), parts.indices.contains(index + 1) {
+            return parts[index + 1].replacingOccurrences(of: "+", with: " ").removingPercentEncoding
+        }
+        return nil
+    }
+
+    private static func withGoogleName(_ result: MapResult, from url: URL) -> MapResult {
+        guard isGoogle(url), let name = googlePlaceName(url), !name.isEmpty else { return result }
+        var named = result
+        named.points = named.points.map { point in
+            var value = point
+            if value.name == nil { value.name = name }
+            return value
+        }
+        return named
     }
 
     private static func googlePlacePreviewURL(_ html: String, base: URL) -> URL? {

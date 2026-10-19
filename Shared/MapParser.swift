@@ -108,7 +108,7 @@ enum MapParser {
             let route = [q("start"), q("finish")].compactMap { $0 }.compactMap { coordinate($0, source: service) }
             if !route.isEmpty { return result(route, service) }
             if let value = q("pin"), let point = coordinate(value, source: service) { return result([point], service) }
-            if let point = regexPoint(url.fragment ?? "", pattern: #"^[0-9.]+/"# + pair, source: service) { return result([point], service) }
+            if let point = regexPoint(url.fragment ?? "", pattern: "^[0-9.]+/(\(number))/(\(number))", source: service) { return result([point], service) }
         }
         if host == "mapy.com" || host == "mapy.cz" || host.hasSuffix(".mapy.com") || host.hasSuffix(".mapy.cz") {
             let service = "Mapy.com"
@@ -146,7 +146,7 @@ enum MapParser {
                 }
             }
             if let value = q("ll"), var point = coordinate(value, source: service) { point.name = q("q"); return result([point], service) }
-            if let point = regexPoint(url.fragment ?? "", pattern: #"^[0-9.]+/"# + pair, source: service) { return result([point], service) }
+            if let point = regexPoint(url.fragment ?? "", pattern: "^[0-9.]+/(\(number))/(\(number))", source: service) { return result([point], service) }
             if let name = q("q") { return result([MapPoint(name: name, source: service)], service) }
         }
         if host == "map.yahoo.co.jp" || host == "map.yahoo.com" {
