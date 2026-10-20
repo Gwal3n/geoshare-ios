@@ -18,6 +18,15 @@ final class GoogleLinkTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(point.longitude), -95.9882522, accuracy: 0.001)
         XCTAssertTrue((point.name ?? "").contains("ONEOK Field"))
         print("ONEOK Field link resolved in \(Date().timeIntervalSince(start)) seconds")
+        XCTAssertLessThan(Date().timeIntervalSince(start), 10)
+    }
+
+    func testPreviewFindsRequestedPlaceAfterNearbySuggestions() throws {
+        let ftid = "0x87b6ebaad12cff0d:0x19170843ea61b3c0"
+        let preview = ")]}'\n[null,[null,null,36.158393,-95.989368],\"other-place\",[null,null,36.1605489,-95.9882522],\"\(ftid)\",\"ONEOK Field\"]"
+        let point = try XCTUnwrap(LinkResolver.googlePlacePreviewPoint(Data(preview.utf8), name: "ONEOK Field", ftid: ftid))
+        XCTAssertEqual(try XCTUnwrap(point.latitude), 36.1605489, accuracy: 0.000001)
+        XCTAssertEqual(try XCTUnwrap(point.longitude), -95.9882522, accuracy: 0.000001)
     }
 
     func testGooglePlaceListOnIOS() async throws {

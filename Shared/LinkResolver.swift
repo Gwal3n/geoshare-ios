@@ -16,7 +16,6 @@ enum LinkResolver {
     private static let googleCookies = "CONSENT=PENDING+987; SOCS=CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg"
 
     static func resolve(_ input: String, allowNetwork: Bool) async throws -> MapResult {
-        let started = Date()
         if let offline = MapParser.parse(input), offline.selected?.latitude != nil { return offline }
         guard allowNetwork else { throw ResolveError.unsupported }
         guard let url = MapParser.extractURL(input), url.scheme == "https", let host = url.host?.lowercased(), isAllowed(host) else { throw ResolveError.unsafeURL }
@@ -29,9 +28,6 @@ enum LinkResolver {
             head.timeoutInterval = 6
             if let response = try? await URLSession.shared.data(for: head), let redirected = response.1.url,
                redirected.scheme == "https", let destinationHost = redirected.host?.lowercased(), isAllowed(destinationHost) {
-                #if DEBUG
-                print("Resolve HEAD \(Date().timeIntervalSince(started))s host=\(destinationHost) path=\(redirected.path)")
-                #endif
                 requestURL = consentContinueURL(redirected) ?? redirected
                 if let parsed = MapParser.parseURL(requestURL, original: input), parsed.selected?.latitude != nil {
                     return withGoogleName(parsed, from: requestURL)
@@ -45,9 +41,6 @@ enum LinkResolver {
         }
         let request = mapRequest(requestURL)
         let (data, response) = try await URLSession.shared.data(for: request)
-        #if DEBUG
-        print("Resolve GET \(Date().timeIntervalSince(started))s host=\(response.url?.host ?? "nil") path=\(response.url?.path ?? "nil") bytes=\(data.count)")
-        #endif
         var finalURL = response.url
         var html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
@@ -57,14 +50,8 @@ enum LinkResolver {
         // preview endpoint. Use it before requesting the Google page again.
         if let finalURL, isGoogle(finalURL), !finalURL.path.hasPrefix("/maps/placelists/list/"),
            let result = await googlePlacePreviewResult(html: html, url: finalURL, original: input) {
-            #if DEBUG
-            print("Resolve preview \(Date().timeIntervalSince(started))s")
-            #endif
             return result
         }
-        #if DEBUG
-        print("Resolve no preview \(Date().timeIntervalSince(started))s hasLink=\(finalURL.flatMap { googlePlacePreviewURL(html, base: $0) } != nil)")
-        #endif
         let previewHTML = html
         // Cookies on a short-link request do not necessarily carry over to Google
         // after URLSession follows the cross-domain redirect on iOS.
@@ -99,9 +86,6 @@ enum LinkResolver {
         #if os(iOS)
         if let finalURL, isGoogle(finalURL),
            let result = await GoogleWebViewResolver.resolve(finalURL, original: input) {
-            #if DEBUG
-            print("Resolve WebView \(Date().timeIntervalSince(started))s")
-            #endif
             return withGoogleName(result, from: finalURL)
         }
         #endif
@@ -174,40 +158,33 @@ enum LinkResolver {
 
     private static func googlePlacePreviewResult(html: String, url: URL, original: String) async -> MapResult? {
         guard let previewURL = googlePlacePreviewURL(html, base: url) else { return nil }
-        let started = Date()
-        guard let response = try? await URLSession.shared.data(for: mapRequest(previewURL)) else {
-            #if DEBUG
-            print("Resolve preview request failed after \(Date().timeIntervalSince(started))s")
-            #endif
-            return nil
-        }
-        guard let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url)) else {
-            #if DEBUG
-            let body = String(decoding: response.0, as: UTF8.self)
-            let ftid = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ftid" })?.value
-            if let ftid, let range = body.range(of: ftid) {
-                let offset = body.distance(from: body.startIndex, to: range.lowerBound)
-                let start = body.index(range.lowerBound, offsetBy: -min(120, offset))
-                let end = body.index(range.upperBound, offsetBy: min(1400, body.distance(from: range.upperBound, to: body.endIndex)))
-                print("Resolve preview target record=\(body[start..<end])")
-            } else {
-                print("Resolve preview missing target ftid; prefix=\(body.prefix(200))")
-            }
-            print("Resolve preview parse failed after \(Date().timeIntervalSince(started))s bytes=\(response.0.count)")
-            #endif
-            return nil
-        }
+        guard let response = try? await URLSession.shared.data(for: mapRequest(previewURL)),
+              let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url),
+                  ftid: URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ftid" })?.value) else { return nil }
         return MapResult(points: [point], original: original, service: "Google Maps")
     }
 
-    static func googlePlacePreviewPoint(_ data: Data, name: String?) -> MapPoint? {
+    static func googlePlacePreviewPoint(_ data: Data, name: String?, ftid: String? = nil) -> MapPoint? {
         let prefix = String(decoding: data.prefix(1_000), as: UTF8.self)
         let number = #"-?\d+(?:\.\d+)?"#
         let pattern = "\\[\\[\(number),(\(number)),(\(number))\\]"
-        guard prefix.hasPrefix(")]}'"), let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: prefix, range: NSRange(prefix.startIndex..., in: prefix)),
-              let lonRange = Range(match.range(at: 1), in: prefix), let latRange = Range(match.range(at: 2), in: prefix),
-              let lon = Double(prefix[lonRange]), let lat = Double(prefix[latRange]),
+        guard prefix.hasPrefix(")]}'") else { return nil }
+        if let regex = try? NSRegularExpression(pattern: pattern),
+           let match = regex.firstMatch(in: prefix, range: NSRange(prefix.startIndex..., in: prefix)),
+           let lonRange = Range(match.range(at: 1), in: prefix), let latRange = Range(match.range(at: 2), in: prefix),
+           let lon = Double(prefix[lonRange]), let lat = Double(prefix[latRange]),
+           (-90...90).contains(lat), (-180...180).contains(lon) {
+            return MapPoint(latitude: lat, longitude: lon, name: name, source: "Google Maps")
+        }
+        // Some Google responses start with nearby suggestions. Match the requested
+        // place ID beside its coordinates, rather than accepting a suggestion.
+        guard let ftid, !ftid.isEmpty else { return nil }
+        let body = String(decoding: data.prefix(2_000_000), as: UTF8.self)
+        let targetPattern = "\\[null,null,(\(number)),(\(number))\\],\"" + NSRegularExpression.escapedPattern(for: ftid) + "\""
+        guard let regex = try? NSRegularExpression(pattern: targetPattern),
+              let match = regex.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)),
+              let latRange = Range(match.range(at: 1), in: body), let lonRange = Range(match.range(at: 2), in: body),
+              let lat = Double(body[latRange]), let lon = Double(body[lonRange]),
               (-90...90).contains(lat), (-180...180).contains(lon) else { return nil }
         return MapPoint(latitude: lat, longitude: lon, name: name, source: "Google Maps")
     }
