@@ -44,6 +44,7 @@ struct ContentView: View {
     @StateObject private var model = LocationModel()
     @AppStorage("customMapName", store: ConnectionPreferences.store) private var customName = "Custom map"
     @AppStorage("customMapURL", store: ConnectionPreferences.store) private var customURL = ""
+    @AppStorage(ConnectionPreferences.defaultMapKey, store: ConnectionPreferences.store) private var defaultMap = MapTarget.apple.rawValue
     @AppStorage(ConnectionPreferences.automaticKey, store: ConnectionPreferences.store) private var automaticallyResolveOnline = false
     @State private var showSettings = false
     @State private var message: String?
@@ -154,12 +155,12 @@ struct ContentView: View {
                     .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
                 VStack(spacing: 0) {
                     ForEach(MapTarget.allCases) { target in
-                        mapRow(target.rawValue, symbol: target.symbol) { open(target, point) }
+                        mapRow(target.rawValue, symbol: target.symbol, shareURL: target.webURL(for: point)) { open(target, point) }
                         if target != MapTarget.allCases.last { Divider().padding(.leading, 40) }
                     }
-                    if !customURL.isEmpty {
+                    if !customURL.isEmpty, let url = customTargetURL(point) {
                         Divider().padding(.leading, 40)
-                        mapRow(customName, symbol: "link") { openCustom(point) }
+                        mapRow(customName, symbol: "link", shareURL: url) { UIApplication.shared.open(url) }
                     }
                 }
             }
@@ -176,9 +177,27 @@ struct ContentView: View {
             if let coordinates = point.coordinateText {
                 Button("Copy coordinates", systemImage: "number") { UIPasteboard.general.string = coordinates }
             }
-            if let url = MapTarget.apple.url(for: point) {
+            if let url = preferredShareURL(for: point) {
                 Button("Copy link", systemImage: "link") { UIPasteboard.general.url = url }
                 Button("Share link", systemImage: "square.and.arrow.up") { presentShare([url]) }
+            }
+            Menu("Default link map", systemImage: "map") {
+                ForEach(MapTarget.allCases) { target in
+                    Button {
+                        defaultMap = target.rawValue
+                    } label: {
+                        if defaultMap == target.rawValue { Label(target.rawValue, systemImage: "checkmark") }
+                        else { Text(target.rawValue) }
+                    }
+                }
+                if !customURL.isEmpty {
+                    Button {
+                        defaultMap = "custom"
+                    } label: {
+                        if defaultMap == "custom" { Label(customName, systemImage: "checkmark") }
+                        else { Text(customName) }
+                    }
+                }
             }
             if let geo = point.geoURL {
                 Button("Copy geo: link", systemImage: "location") { UIPasteboard.general.string = geo.absoluteString }
@@ -203,23 +222,42 @@ struct ContentView: View {
         .accessibilityLabel("Location actions")
     }
 
-    private func mapRow(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).frame(width: 24)
-                Text(title)
-                Spacer()
-                Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary)
+    private func mapRow(_ title: String, symbol: String, shareURL: URL?, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 0) {
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    Image(systemName: symbol).frame(width: 24)
+                    Text(title)
+                    Spacer()
+                    Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary)
+                }
+                .frame(minHeight: 43)
+                .contentShape(Rectangle())
             }
-            .frame(minHeight: 43)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            if let shareURL {
+                Menu {
+                    Button("Share link", systemImage: "square.and.arrow.up") { presentShare([shareURL]) }
+                    Button("Copy link", systemImage: "link") { UIPasteboard.general.url = shareURL }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("\(title) link actions")
+            }
         }
-        .buttonStyle(.plain)
     }
 
     private var settings: some View {
         NavigationStack {
             Form {
+                Section("Default link map") {
+                    Picker("Share and copy with", selection: $defaultMap) {
+                        ForEach(MapTarget.allCases) { target in Text(target.rawValue).tag(target.rawValue) }
+                        if !customURL.isEmpty { Text(customName).tag("custom") }
+                    }
+                }
                 Section("Custom map") {
                     TextField("Name", text: $customName)
                     TextField("URL template", text: $customURL).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -262,13 +300,23 @@ struct ContentView: View {
     }
 
     private func openCustom(_ point: MapPoint) {
-        guard let lat = point.latitude, let lon = point.longitude else { return }
+        guard let url = customTargetURL(point) else { message = "Enter a valid HTTP or HTTPS custom map URL."; return }
+        UIApplication.shared.open(url)
+    }
+
+    private func customTargetURL(_ point: MapPoint) -> URL? {
+        guard let lat = point.latitude, let lon = point.longitude else { return nil }
         let value = customURL.replacingOccurrences(of: "{lat}", with: String(lat))
             .replacingOccurrences(of: "{lon}", with: String(lon))
             .replacingOccurrences(of: "{coords}", with: "\(lat),\(lon)")
             .replacingOccurrences(of: "{name}", with: (point.name ?? "").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")
-        guard let url = URL(string: value), ["https", "http"].contains(url.scheme ?? "") else { message = "Enter a valid HTTP or HTTPS custom map URL."; return }
-        UIApplication.shared.open(url)
+        guard let url = URL(string: value), ["https", "http"].contains(url.scheme ?? "") else { return nil }
+        return url
+    }
+
+    private func preferredShareURL(for point: MapPoint) -> URL? {
+        if defaultMap == "custom", let url = customTargetURL(point) { return url }
+        return (MapTarget(rawValue: defaultMap) ?? .apple).webURL(for: point)
     }
 
     private func shareGPX(_ points: [MapPoint]) {

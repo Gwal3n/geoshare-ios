@@ -37,22 +37,25 @@ enum MapTarget: String, CaseIterable, Identifiable {
 
     func webURL(for point: MapPoint) -> URL? {
         guard let coordinates = point.coordinateText?.replacingOccurrences(of: " ", with: "") else { return nil }
+        if self == .apple { return url(for: point) }
         let base: String
         switch self {
-        case .apple: base = "https://maps.apple.com/"
-        case .organic: base = "https://omaps.app/"
-        case .comaps: base = "https://comaps.at/"
+        case .apple: return nil
+        case .organic: base = "https://omaps.app/map"
+        case .comaps: base = "https://comaps.at/map"
         case .google: base = "https://www.google.com/maps/search/"
         case .waze: base = "https://www.waze.com/ul"
         case .openStreetMap: return url(for: point)
         }
         guard var components = URLComponents(string: base) else { return nil }
         switch self {
-        case .apple, .organic, .comaps, .waze:
+        case .organic, .comaps:
+            components.queryItems = [URLQueryItem(name: "v", value: "1"), URLQueryItem(name: "ll", value: coordinates), URLQueryItem(name: "n", value: point.name ?? "Shared location")]
+        case .waze:
             components.queryItems = [URLQueryItem(name: "ll", value: coordinates)]
         case .google:
             components.queryItems = [URLQueryItem(name: "api", value: "1"), URLQueryItem(name: "query", value: coordinates)]
-        case .openStreetMap: break
+        case .apple, .openStreetMap: break
         }
         return components.url
     }
