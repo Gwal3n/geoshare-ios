@@ -16,6 +16,7 @@ enum LinkResolver {
     private static let googleCookies = "CONSENT=PENDING+987; SOCS=CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg"
 
     static func resolve(_ input: String, allowNetwork: Bool) async throws -> MapResult {
+        let started = Date()
         if let offline = MapParser.parse(input), offline.selected?.latitude != nil { return offline }
         guard allowNetwork else { throw ResolveError.unsupported }
         guard let url = MapParser.extractURL(input), url.scheme == "https", let host = url.host?.lowercased(), isAllowed(host) else { throw ResolveError.unsafeURL }
@@ -28,6 +29,9 @@ enum LinkResolver {
             head.timeoutInterval = 6
             if let response = try? await URLSession.shared.data(for: head), let redirected = response.1.url,
                redirected.scheme == "https", let destinationHost = redirected.host?.lowercased(), isAllowed(destinationHost) {
+                #if DEBUG
+                print("Resolve HEAD \(Date().timeIntervalSince(started))s host=\(destinationHost) path=\(redirected.path)")
+                #endif
                 requestURL = consentContinueURL(redirected) ?? redirected
                 if let parsed = MapParser.parseURL(requestURL, original: input), parsed.selected?.latitude != nil {
                     return withGoogleName(parsed, from: requestURL)
@@ -41,6 +45,9 @@ enum LinkResolver {
         }
         let request = mapRequest(requestURL)
         let (data, response) = try await URLSession.shared.data(for: request)
+        #if DEBUG
+        print("Resolve GET \(Date().timeIntervalSince(started))s host=\(response.url?.host ?? "nil") path=\(response.url?.path ?? "nil") bytes=\(data.count)")
+        #endif
         var finalURL = response.url
         var html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
@@ -50,8 +57,14 @@ enum LinkResolver {
         // preview endpoint. Use it before requesting the Google page again.
         if let finalURL, isGoogle(finalURL), !finalURL.path.hasPrefix("/maps/placelists/list/"),
            let result = await googlePlacePreviewResult(html: html, url: finalURL, original: input) {
+            #if DEBUG
+            print("Resolve preview \(Date().timeIntervalSince(started))s")
+            #endif
             return result
         }
+        #if DEBUG
+        print("Resolve no preview \(Date().timeIntervalSince(started))s hasLink=\(finalURL.flatMap { googlePlacePreviewURL(html, base: $0) } != nil)")
+        #endif
         let previewHTML = html
         // Cookies on a short-link request do not necessarily carry over to Google
         // after URLSession follows the cross-domain redirect on iOS.
@@ -86,6 +99,9 @@ enum LinkResolver {
         #if os(iOS)
         if let finalURL, isGoogle(finalURL),
            let result = await GoogleWebViewResolver.resolve(finalURL, original: input) {
+            #if DEBUG
+            print("Resolve WebView \(Date().timeIntervalSince(started))s")
+            #endif
             return withGoogleName(result, from: finalURL)
         }
         #endif
@@ -157,9 +173,20 @@ enum LinkResolver {
     }
 
     private static func googlePlacePreviewResult(html: String, url: URL, original: String) async -> MapResult? {
-        guard let previewURL = googlePlacePreviewURL(html, base: url),
-              let response = try? await URLSession.shared.data(for: mapRequest(previewURL)),
-              let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url)) else { return nil }
+        guard let previewURL = googlePlacePreviewURL(html, base: url) else { return nil }
+        let started = Date()
+        guard let response = try? await URLSession.shared.data(for: mapRequest(previewURL)) else {
+            #if DEBUG
+            print("Resolve preview request failed after \(Date().timeIntervalSince(started))s")
+            #endif
+            return nil
+        }
+        guard let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url)) else {
+            #if DEBUG
+            print("Resolve preview parse failed after \(Date().timeIntervalSince(started))s bytes=\(response.0.count) prefix=\(String(decoding: response.0.prefix(80), as: UTF8.self))")
+            #endif
+            return nil
+        }
         return MapResult(points: [point], original: original, service: "Google Maps")
     }
 
