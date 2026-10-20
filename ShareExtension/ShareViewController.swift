@@ -60,7 +60,6 @@ private struct ShareContentView: View {
     @State private var error: String?
     @State private var busy = false
     @State private var needsNetwork = false
-    @State private var copiedValue: String?
     @AppStorage(ConnectionPreferences.automaticKey, store: ConnectionPreferences.store) private var automaticallyResolveOnline = false
     @AppStorage("customMapName", store: ConnectionPreferences.store) private var customName = "Custom map"
     @AppStorage("customMapURL", store: ConnectionPreferences.store) private var customURL = ""
@@ -70,98 +69,58 @@ private struct ShareContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Label("Jump between maps", systemImage: "location.north.circle.fill")
-                        .font(.title2.bold()).foregroundStyle(.teal)
+                        .font(.headline).foregroundStyle(.teal)
                     Text(input.isEmpty ? "Waiting for a map link…" : input)
-                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
+                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                     if busy { ProgressView("Finding location…") }
                     if let error { Text(error).font(.subheadline).foregroundStyle(.secondary) }
                     if needsNetwork {
                         Text("This link needs an online lookup. The map service will receive the link and your IP address.")
                             .font(.subheadline)
                         Button("Resolve online", systemImage: "network") { process(network: true) }
-                            .frame(maxWidth: .infinity, minHeight: 52).geoPrimaryAction()
+                            .buttonStyle(.borderedProminent)
                         Button("Always resolve online") { automaticallyResolveOnline = true; process(network: true) }
                     }
                     if let result {
                         ForEach(Array(result.points.enumerated()), id: \.element.id) { index, point in
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(alignment: .top, spacing: 10) {
-                                    Text(point.name ?? "Place \(index + 1)").font(.headline)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .textSelection(.enabled)
-                                    if let address = point.name, !address.isEmpty {
-                                        Button {
-                                            UIPasteboard.general.string = address
-                                            copiedValue = address
-                                        } label: {
-                                            Label(copiedValue == address ? "Copied" : "Copy address", systemImage: copiedValue == address ? "checkmark" : "doc.on.doc")
-                                                .font(.subheadline.weight(.semibold))
-                                        }
-                                        .frame(minHeight: 44).geoSecondaryAction()
-                                        .accessibilityHint("Copies the place name or address shown here")
-                                    }
+                            HStack(alignment: .top, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(point.name ?? "Place \(index + 1)").font(.headline).textSelection(.enabled)
+                                    Text(point.coordinateText ?? "Coordinates unavailable")
+                                        .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                                 }
-                                if let coordinates = point.coordinateText {
-                                    Text(coordinates).font(.system(.body, design: .monospaced))
-                                    Button("Copy coordinates", systemImage: "doc.on.doc") { UIPasteboard.general.string = coordinates }
-                                    if let geo = point.geoURL {
-                                        Button("Copy geo: link", systemImage: "link") { UIPasteboard.general.string = geo.absoluteString }
-                                    }
-                                    if result.points.count > 1 {
-                                        Menu("Open in…", systemImage: "arrow.up.right") {
-                                            ForEach(MapTarget.allCases) { target in
-                                                Button(target.rawValue) { openTarget(target, point) }
-                                            }
-                                        }
-                                    }
-                                } else { Text("Coordinates unavailable").foregroundStyle(.secondary) }
+                                Spacer(minLength: 0)
+                                actionsMenu(point, result: result)
                             }
-                            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
                         }
                         if let point = result.selected, point.coordinateText != nil {
-                            if let url = MapTarget.apple.url(for: point) {
-                                HStack(spacing: 10) {
-                                    Button { offer(url) } label: {
-                                        Label("Share", systemImage: "square.and.arrow.up")
-                                            .frame(maxWidth: .infinity, minHeight: 52)
+                            Text("Open in").font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                            VStack(spacing: 0) {
+                                ForEach(MapTarget.allCases) { target in
+                                    Button { openTarget(target, point) } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: target.symbol).frame(width: 24)
+                                            Text(target.rawValue)
+                                            Spacer()
+                                            Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary)
+                                        }
+                                        .frame(minHeight: 43).contentShape(Rectangle())
                                     }
-                                    .geoPrimaryAction()
-                                    Button {
-                                        UIPasteboard.general.url = url
-                                        copiedValue = url.absoluteString
-                                    } label: {
-                                        Label(copiedValue == url.absoluteString ? "Copied" : "Copy link", systemImage: copiedValue == url.absoluteString ? "checkmark" : "link")
-                                            .frame(maxWidth: .infinity, minHeight: 52)
-                                    }
-                                    .geoSecondaryAction()
+                                    .buttonStyle(.plain)
+                                    if target != MapTarget.allCases.last { Divider().padding(.leading, 40) }
                                 }
-                            }
-                            Text("OPEN IN").font(.caption.bold()).foregroundStyle(.secondary)
-                            ForEach(MapTarget.allCases) { target in
-                                Button { openTarget(target, point) } label: {
-                                    HStack { Label(target.rawValue, systemImage: target.symbol); Spacer(); Image(systemName: "arrow.up.right") }
-                                        .font(.body.weight(.semibold))
-                                        .frame(minHeight: 52)
-                                        .padding(.horizontal, 16)
-                                }
-                                .geoSecondaryAction()
                             }
                             if !customURL.isEmpty, let url = customTargetURL(point) {
-                                Button { openDestination(url, fallback: url) } label: {
-                                    Label(customName, systemImage: "link")
-                                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                                        .padding(.horizontal, 16)
-                                }
-                                .geoSecondaryAction()
+                                Button(customName, systemImage: "link") { openDestination(url, fallback: url) }
                             }
                             Text("If iOS blocks opening from the share extension, choose an app from the system sheet.")
                                 .font(.caption).foregroundStyle(.secondary)
                             Button("Continue in GeoShare app", systemImage: "arrow.up.forward.app") {
                                 SharedInbox.save(input); close()
                             }
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .geoSecondaryAction()
+                            .buttonStyle(.bordered)
                         }
                     }
                 }
@@ -179,6 +138,40 @@ private struct ShareContentView: View {
             }
         }
         .tint(Color(red: 0.14, green: 0.44, blue: 0.39))
+    }
+
+    private func actionsMenu(_ point: MapPoint, result: MapResult) -> some View {
+        Menu {
+            if let address = point.name, !address.isEmpty {
+                Button("Copy address", systemImage: "doc.on.doc") { UIPasteboard.general.string = address }
+            }
+            if let coordinates = point.coordinateText {
+                Button("Copy coordinates", systemImage: "number") { UIPasteboard.general.string = coordinates }
+            }
+            if let url = MapTarget.apple.url(for: point) {
+                Button("Copy link", systemImage: "link") { UIPasteboard.general.url = url }
+                Button("Share link", systemImage: "square.and.arrow.up") { offer(url) }
+            }
+            if let geo = point.geoURL {
+                Button("Copy geo: link", systemImage: "location") { UIPasteboard.general.string = geo.absoluteString }
+            }
+            if result.points.count > 1, point.coordinateText != nil {
+                Menu("Open in…", systemImage: "arrow.up.right") {
+                    ForEach(MapTarget.allCases) { target in
+                        Button(target.rawValue) { openTarget(target, point) }
+                    }
+                    if !customURL.isEmpty, let url = customTargetURL(point) {
+                        Button(customName) { openDestination(url, fallback: url) }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.body.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("Location actions")
     }
 
     private func process(network: Bool = false) {

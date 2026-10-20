@@ -19,12 +19,27 @@ enum LinkResolver {
         if let offline = MapParser.parse(input), offline.selected?.latitude != nil { return offline }
         guard allowNetwork else { throw ResolveError.unsupported }
         guard let url = MapParser.extractURL(input), url.scheme == "https", let host = url.host?.lowercased(), isAllowed(host) else { throw ResolveError.unsafeURL }
-        if isGoogle(url), let apiURL = GooglePlaceListParser.apiURL(for: url),
+        // Resolve Google's short redirect without downloading the destination page.
+        // The destination GET can then include Google cookies on its first request.
+        var requestURL = url
+        if host == "maps.app.goo.gl" || host == "goo.gl" {
+            var head = mapRequest(url)
+            head.httpMethod = "HEAD"
+            head.timeoutInterval = 6
+            if let response = try? await URLSession.shared.data(for: head), let redirected = response.1.url,
+               redirected.scheme == "https", let destinationHost = redirected.host?.lowercased(), isAllowed(destinationHost) {
+                requestURL = consentContinueURL(redirected) ?? redirected
+                if let parsed = MapParser.parseURL(requestURL, original: input), parsed.selected?.latitude != nil {
+                    return withGoogleName(parsed, from: requestURL)
+                }
+            }
+        }
+        if isGoogle(requestURL), let apiURL = GooglePlaceListParser.apiURL(for: requestURL),
            let response = try? await URLSession.shared.data(for: mapRequest(apiURL)),
            let points = GooglePlaceListParser.points(data: response.0) {
             return MapResult(points: points, original: input, service: "Google Maps")
         }
-        let request = mapRequest(url)
+        let request = mapRequest(requestURL)
         let (data, response) = try await URLSession.shared.data(for: request)
         var finalURL = response.url
         var html = String(decoding: data.prefix(2_000_000), as: UTF8.self)
@@ -40,7 +55,7 @@ enum LinkResolver {
         let previewHTML = html
         // Cookies on a short-link request do not necessarily carry over to Google
         // after URLSession follows the cross-domain redirect on iOS.
-        if let redirectedURL = finalURL, isGoogle(redirectedURL), !isGoogle(url) {
+        if let redirectedURL = finalURL, isGoogle(redirectedURL), !isGoogle(requestURL) {
             let mapURL = consentContinueURL(redirectedURL) ?? redirectedURL
             if let fresh = try? await URLSession.shared.data(for: mapRequest(mapURL)) {
                 finalURL = fresh.1.url

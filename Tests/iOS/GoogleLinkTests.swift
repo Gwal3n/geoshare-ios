@@ -10,6 +10,16 @@ final class GoogleLinkTests: XCTestCase {
         XCTAssertTrue((point.name ?? "").contains("Center of the Universe"))
     }
 
+    func testSharedONEOKFieldLinkOnIOS() async throws {
+        let start = Date()
+        let result = try await LinkResolver.resolve("https://maps.app.goo.gl/g3go7HTmFPYWMtaeA?g_st=ic", allowNetwork: true)
+        let point = try XCTUnwrap(result.selected)
+        XCTAssertEqual(try XCTUnwrap(point.latitude), 36.1605489, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(point.longitude), -95.9882522, accuracy: 0.001)
+        XCTAssertTrue((point.name ?? "").contains("ONEOK Field"))
+        print("ONEOK Field link resolved in \(Date().timeIntervalSince(start)) seconds")
+    }
+
     func testGooglePlaceListOnIOS() async throws {
         let result = try await LinkResolver.resolve("https://www.google.com/maps/placelists/list/mfmnkPs6RuGyp0HOmXLSKg", allowNetwork: true)
         XCTAssertEqual(result.points.count, 8)

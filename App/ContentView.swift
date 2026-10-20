@@ -1,6 +1,21 @@
 import SwiftUI
 import UIKit
 
+private struct SharePayload: Identifiable {
+    let id = UUID()
+    let items: [Any]
+}
+
+private struct ActivitySheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
 @MainActor final class LocationModel: ObservableObject {
     @Published var input = ""
     @Published var result: MapResult?
@@ -32,21 +47,14 @@ struct ContentView: View {
     @AppStorage(ConnectionPreferences.automaticKey, store: ConnectionPreferences.store) private var automaticallyResolveOnline = false
     @State private var showSettings = false
     @State private var message: String?
-    @State private var copiedValue: String?
+    @State private var sharePayload: SharePayload?
     @FocusState private var inputFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("A place, in every map")
-                            .font(.largeTitle.bold())
-                        Text("Paste a map link and take the location anywhere.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 18) {
                     inputCard
                     if model.busy { ProgressView("Finding location…").frame(maxWidth: .infinity).padding() }
                     if let error = model.error { Text(error).foregroundStyle(.secondary).padding(.horizontal, 4) }
@@ -54,7 +62,7 @@ struct ContentView: View {
                     if let result = model.result { resultCard(result) }
                 }
                 .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Color(uiColor: .systemGroupedBackground))
@@ -68,6 +76,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showSettings) { settings }
+            .sheet(item: $sharePayload) { payload in ActivitySheet(items: payload.items) }
             .alert("GeoShare", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) { Button("OK", role: .cancel) {} } message: { Text(message ?? "") }
             .onAppear(perform: readInbox)
             .onChange(of: scenePhase) { _, phase in if phase == .active { readInbox() } }
@@ -76,27 +85,26 @@ struct ContentView: View {
     }
 
     private var inputCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("Map link or coordinates", systemImage: "link")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Paste a map link")
+                .font(.title3.weight(.semibold))
             TextField("https://maps.app.goo.gl/…", text: $model.input, axis: .vertical)
                 .lineLimit(2...5).textInputAutocapitalization(.never).autocorrectionDisabled()
                 .focused($inputFocused)
                 .keyboardType(.URL)
-                .padding(14)
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-            HStack(spacing: 10) {
+                .padding(12)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+            HStack {
                 Button("Paste", systemImage: "doc.on.clipboard") {
                     if let text = UIPasteboard.general.string { model.input = text }
                 }
-                .frame(minHeight: 52)
-                .geoSecondaryAction()
+                .buttonStyle(.plain)
+                Spacer()
                 Button("Find location", systemImage: "arrow.right") { inputFocused = false; model.process() }
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .geoPrimaryAction().disabled(model.input.isEmpty || model.busy)
+                    .buttonStyle(.borderedProminent).disabled(model.input.isEmpty || model.busy)
             }
         }
-        .padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26))
+        .padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var networkCard: some View {
@@ -105,111 +113,108 @@ struct ContentView: View {
             Text("GeoShare can visit the map service to follow its short link or read the place coordinates. The service will receive this link and your IP address.")
                 .font(.subheadline).foregroundStyle(.secondary)
             Button("Resolve online", systemImage: "network") { inputFocused = false; model.process(network: true) }
-                .frame(maxWidth: .infinity, minHeight: 52).geoPrimaryAction()
+                .buttonStyle(.borderedProminent)
         }
-        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 26))
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func resultCard(_ result: MapResult) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(result.service.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.teal)
-                    Text(result.selected?.name ?? "Location found").font(.title2.bold())
+                    Text(result.service).font(.caption).foregroundStyle(.secondary)
+                    Text(result.selected?.name ?? "Location found").font(.title3.weight(.semibold))
                         .textSelection(.enabled)
-                }
-                Spacer()
-                if let address = result.selected?.name, !address.isEmpty {
-                    Button {
-                        UIPasteboard.general.string = address
-                        copiedValue = address
-                    } label: {
-                        Label(copiedValue == address ? "Copied" : "Copy address", systemImage: copiedValue == address ? "checkmark" : "doc.on.doc")
-                            .font(.subheadline.weight(.semibold))
+                    if result.points.count == 1, let coordinates = result.selected?.coordinateText {
+                        Text(coordinates).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    .frame(minHeight: 44)
-                    .geoSecondaryAction()
-                    .accessibilityHint("Copies the place name or address shown here")
                 }
+                Spacer(minLength: 0)
+                if let point = result.selected { actionsMenu(point, result: result) }
             }
             if result.points.count > 1 {
-                Text("\(result.points.count) points in this route").font(.subheadline).foregroundStyle(.secondary)
-            }
-            ForEach(result.points) { point in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(point.name ?? point.coordinateText ?? "Unknown point").font(.headline)
-                    if let coordinates = point.coordinateText {
-                        Text(coordinates).font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
-                        Button("Copy coordinates", systemImage: "doc.on.doc") {
-                            UIPasteboard.general.string = coordinates
-                            copiedValue = coordinates
+                Text("\(result.points.count) places").font(.subheadline).foregroundStyle(.secondary)
+                ForEach(result.points) { point in
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(point.name ?? "Location").font(.body.weight(.medium))
+                            Text(point.coordinateText ?? "Coordinates unavailable")
+                                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         }
-                        .font(.subheadline.weight(.medium))
-                        if let geo = point.geoURL {
-                            Button("Copy geo: link", systemImage: "link") {
-                                UIPasteboard.general.string = geo.absoluteString
-                                copiedValue = geo.absoluteString
-                            }
-                            .font(.subheadline.weight(.medium))
-                        }
-                        if result.points.count > 1 {
-                            Menu("Open in…", systemImage: "arrow.up.right") {
-                                ForEach(MapTarget.allCases) { target in
-                                    Button(target.rawValue) { open(target, point) }
-                                }
-                                if !customURL.isEmpty { Button(customName) { openCustom(point) } }
-                            }
-                        }
-                    } else { Text("Coordinates unavailable; the name may be ambiguous.").font(.subheadline).foregroundStyle(.secondary) }
+                        Spacer(minLength: 0)
+                        actionsMenu(point, result: result)
+                    }
+                    .padding(.vertical, 6)
                 }
-                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
             }
             if let point = result.selected, point.coordinateText != nil {
-                if let url = MapTarget.apple.url(for: point) {
-                    HStack(spacing: 10) {
-                        ShareLink(item: url) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                        }
-                        .geoPrimaryAction()
-                        Button {
-                            UIPasteboard.general.url = url
-                            copiedValue = url.absoluteString
-                        } label: {
-                            Label(copiedValue == url.absoluteString ? "Copied" : "Copy link", systemImage: copiedValue == url.absoluteString ? "checkmark" : "link")
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                        }
-                        .geoSecondaryAction()
+                Divider()
+                Text(result.points.count > 1 ? "Open last place in" : "Open in")
+                    .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                VStack(spacing: 0) {
+                    ForEach(MapTarget.allCases) { target in
+                        mapRow(target.rawValue, symbol: target.symbol) { open(target, point) }
+                        if target != MapTarget.allCases.last { Divider().padding(.leading, 40) }
+                    }
+                    if !customURL.isEmpty {
+                        Divider().padding(.leading, 40)
+                        mapRow(customName, symbol: "link") { openCustom(point) }
                     }
                 }
-                Text(result.points.count > 1 ? "OPEN LAST POINT IN" : "OPEN IN")
-                    .font(.caption.bold()).foregroundStyle(.secondary)
-                ForEach(MapTarget.allCases) { target in
-                    Button { open(target, point) } label: {
-                        HStack { Label(target.rawValue, systemImage: target.symbol); Spacer(); Image(systemName: "arrow.up.right") }
-                            .font(.body.weight(.semibold))
-                            .frame(minHeight: 52)
-                            .padding(.horizontal, 16)
-                    }
-                    .geoSecondaryAction()
-                }
-                if !customURL.isEmpty {
-                    Button { openCustom(point) } label: {
-                        Label(customName, systemImage: "link")
-                            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                            .padding(.horizontal, 16)
-                    }
-                    .geoSecondaryAction()
-                }
-                Button("Share GPX file", systemImage: "square.and.arrow.up") { shareGPX(result.points) }
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .geoSecondaryAction()
             }
             if let note = result.note { Text(note).font(.caption).foregroundStyle(.secondary) }
         }
-        .padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26))
+        .padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func actionsMenu(_ point: MapPoint, result: MapResult) -> some View {
+        Menu {
+            if let address = point.name, !address.isEmpty {
+                Button("Copy address", systemImage: "doc.on.doc") { UIPasteboard.general.string = address }
+            }
+            if let coordinates = point.coordinateText {
+                Button("Copy coordinates", systemImage: "number") { UIPasteboard.general.string = coordinates }
+            }
+            if let url = MapTarget.apple.url(for: point) {
+                Button("Copy link", systemImage: "link") { UIPasteboard.general.url = url }
+                Button("Share link", systemImage: "square.and.arrow.up") { presentShare([url]) }
+            }
+            if let geo = point.geoURL {
+                Button("Copy geo: link", systemImage: "location") { UIPasteboard.general.string = geo.absoluteString }
+            }
+            if result.selected?.id == point.id {
+                Button("Share GPX file", systemImage: "square.and.arrow.up.on.square") { shareGPX(result.points) }
+            }
+            if result.points.count > 1, point.coordinateText != nil {
+                Menu("Open in…", systemImage: "arrow.up.right") {
+                    ForEach(MapTarget.allCases) { target in
+                        Button(target.rawValue) { open(target, point) }
+                    }
+                    if !customURL.isEmpty { Button(customName) { openCustom(point) } }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.body.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("Location actions")
+    }
+
+    private func mapRow(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol).frame(width: 24)
+                Text(title)
+                Spacer()
+                Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .frame(minHeight: 43)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var settings: some View {
@@ -270,8 +275,11 @@ struct ContentView: View {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("GeoShare-location.gpx")
         do {
             try LocationExport.gpx(points).write(to: url, atomically: true, encoding: .utf8)
-            let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.keyWindow?.rootViewController?.present(activity, animated: true)
+            presentShare([url])
         } catch { message = error.localizedDescription }
+    }
+
+    private func presentShare(_ items: [Any]) {
+        sharePayload = SharePayload(items: items)
     }
 }
