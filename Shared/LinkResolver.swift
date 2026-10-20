@@ -183,7 +183,7 @@ enum LinkResolver {
         }
         guard let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url)) else {
             #if DEBUG
-            print("Resolve preview parse failed after \(Date().timeIntervalSince(started))s bytes=\(response.0.count) prefix=\(String(decoding: response.0.prefix(80), as: UTF8.self))")
+            print("Resolve preview parse failed after \(Date().timeIntervalSince(started))s bytes=\(response.0.count) prefix=\(String(decoding: response.0.prefix(1600), as: UTF8.self))")
             #endif
             return nil
         }
