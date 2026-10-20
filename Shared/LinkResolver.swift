@@ -183,7 +183,17 @@ enum LinkResolver {
         }
         guard let point = googlePlacePreviewPoint(response.0, name: googlePlaceName(url)) else {
             #if DEBUG
-            print("Resolve preview parse failed after \(Date().timeIntervalSince(started))s bytes=\(response.0.count) prefix=\(String(decoding: response.0.prefix(1600), as: UTF8.self))")
+            let body = String(decoding: response.0, as: UTF8.self)
+            let ftid = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ftid" })?.value
+            if let ftid, let range = body.range(of: ftid) {
+                let offset = body.distance(from: body.startIndex, to: range.lowerBound)
+                let start = body.index(range.lowerBound, offsetBy: -min(120, offset))
+                let end = body.index(range.upperBound, offsetBy: min(1400, body.distance(from: range.upperBound, to: body.endIndex)))
+                print("Resolve preview target record=\(body[start..<end])")
+            } else {
+                print("Resolve preview missing target ftid; prefix=\(body.prefix(200))")
+            }
+            print("Resolve preview parse failed after \(Date().timeIntervalSince(started))s bytes=\(response.0.count)")
             #endif
             return nil
         }
