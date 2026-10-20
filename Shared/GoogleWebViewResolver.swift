@@ -18,10 +18,11 @@ enum GoogleWebViewResolver {
 
         var candidateURL: URL?
         var candidateSince = Date()
-        for _ in 0..<40 {
+        let isPlaceList = url.path.hasPrefix("/maps/placelists/list/")
+        for _ in 0..<(isPlaceList ? 44 : 28) {
             if Task.isCancelled { break }
-            try? await Task.sleep(nanoseconds: 750_000_000)
-            if url.path.hasPrefix("/maps/placelists/list/"),
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if isPlaceList,
                let json = (try? await webView.evaluateJavaScript(placeListJavaScript)) as? String,
                let points = GooglePlaceListParser.points(json), !points.isEmpty {
                 webView.stopLoading()
@@ -37,7 +38,7 @@ enum GoogleWebViewResolver {
             if current != candidateURL {
                 candidateURL = current
                 candidateSince = Date()
-            } else if Date().timeIntervalSince(candidateSince) >= 3 {
+            } else if Date().timeIntervalSince(candidateSince) >= 1 {
                 webView.stopLoading()
                 return result
             }

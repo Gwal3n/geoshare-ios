@@ -37,6 +37,7 @@ enum LinkResolver {
            let result = await googlePlacePreviewResult(html: html, url: finalURL, original: input) {
             return result
         }
+        let previewHTML = html
         // Cookies on a short-link request do not necessarily carry over to Google
         // after URLSession follows the cross-domain redirect on iOS.
         if let redirectedURL = finalURL, isGoogle(redirectedURL), !isGoogle(url) {
@@ -60,7 +61,7 @@ enum LinkResolver {
         if let finalURL, let parsed = MapParser.parseURL(finalURL, original: input), parsed.selected?.latitude != nil {
             return withGoogleName(parsed, from: finalURL)
         }
-        if let finalURL, isGoogle(finalURL),
+        if html != previewHTML, let finalURL, isGoogle(finalURL),
            let result = await googlePlacePreviewResult(html: html, url: finalURL, original: input) {
             return result
         }
